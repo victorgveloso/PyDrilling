@@ -24,8 +24,6 @@ class Method:
 
         new_method = cls(package, method.name, method.nloc, method.complexity, n_commits, contributors)
 
-        project.methods.append(new_method)
-
         return new_method
 
     def __init__(self, package: str, name: str, nloc: int, complexity: int, n_commits: int,

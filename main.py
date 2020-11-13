@@ -1,59 +1,90 @@
-from typing import Dict
+from typing import Dict, Set, Union, Tuple, List
 
 import jsonpickle as jsonpickle
-import pydriller
+from pydriller.domain.commit import Method as PyDrillerMethod
 
 from cache import TestIndex
+from commit import CustomCommit
 from method import Method
 from project import Project
 
 
+class PyDrillingController:
+    def __init__(self):
+        self.project_args: List[Tuple[str, str]] = [('okhttp', 'okhttp'), ('retrofit', 'retrofit'), ('RxJava', '.'),
+                                                    ('zxing', 'core')]
+        self.projects: Union[Dict[str, Project], None] = None
+
+    @staticmethod
+    def _import_and_cache(name, module) -> Project:
+        project = Project.custom_import(name, module)
+        TestIndex.cache_test_files(name, project)
+        return project
+
+    def load(self):
+        from multiprocessing import Pool
+        with Pool(4) as p:
+            results = p.starmap(PyDrillingController._import_and_cache, self.project_args)
+        self.projects = {project.name: project for project in results}
+
+    def process(self):
+        if self.projects is None:
+            self.projects = {}
+            for name, module in self.project_args:
+                with open(f'{name}.json', 'r') as f:
+                    project: Project = jsonpickle.decode(f.read())
+                    self.projects[project.name] = project
+
+        for name, project in self.projects.items():
+            test_files = TestIndex.iter_test_files(name)
+            test_methods: Dict[PyDrillerMethod, Set[CustomCommit]] = {}
+            for commit in project.commits:
+                for method in commit.modified_methods:
+                    if method.filename in test_files:
+                        if method in test_methods:
+                            test_methods[method].add(commit)
+                        else:
+                            test_methods[method] = set()
+            for method, commits in test_methods.items():
+                contributors = {commit.author.email for commit in commits}
+                new_method = Method.from_pydriller_method(method.filename, method, len(commits), contributors, project)
+                project.methods.append(new_method)
+
+    def visualize(self):
+        from statistics import mean, median, stdev, StatisticsError
+        with open("output.csv", "w") as f:
+            f.write(
+                "Project,Package,Method,SLOC,Complexity,ModifyingCommits,Contributors," +
+                "MaxExperienced,MinExperienced,MeanExperience,MedianExperience,StdevExperience\n")
+        for project_name, project in self.projects.items():
+            for test in project.methods:
+                experiences = [c.experience for c in test.contributors]
+                with open("output.csv", "a") as f:
+                    try:
+                        stdev_xp = str(stdev(experiences))
+                    except StatisticsError:
+                        stdev_xp = "None"
+                    f.write(','.join([project_name, test.package, test.name, str(test.nloc), str(test.complexity),
+                                      str(test.n_commits), str(len(experiences)), str(max(experiences)),
+                                      str(min(experiences)), str(mean(experiences)), str(median(experiences)),
+                                      stdev_xp]) + '\n')
+
+
 def main():
-    projects: Dict[str, Project] = {
-        'okhttp': Project.custom_import('okhttp', 'okhttp'),
-        'retrofit': Project.custom_import('retrofit', 'retrofit'),
-        'RxJava': Project.custom_import('RxJava'),
-        'zxing': Project.custom_import('zxing', 'core')
-    }
-
-    TestIndex.cache_test_files(projects)
-    for name, project in projects.items():
-        for test_file in TestIndex.iter_test_files(name):
-            commits = file_modifying_commits(project.module_name + test_file, name)
-            last_commit = commits[-1]
-            test_file_name = test_file.rsplit('/', maxsplit=1)[-1]
-            changed_methods = {}
-            for c in commits:
-                for mod in c.modifications:
-                    for m in mod.changed_methods:
-                        changed_methods[m] = c
-            method_modifying_commits = set()
-            for method in list_methods(last_commit, test_file_name):
-                if method in changed_methods:
-                    method_modifying_commits.add(changed_methods[method])
-                contributors = [c.author for c in method_modifying_commits]
-                Method.from_pydriller_method(test_file, method, len(method_modifying_commits), contributors, project)
-    with open('projects.json', 'w') as f:
-        f.write(jsonpickle.encode(projects))
-
-
-def list_methods(commit, filename, prefix=""):
-    for mod in commit.modifications:
-        if mod.filename == filename:
-            for method in mod.methods:
-                if f"::{prefix}" in method.name:
-                    yield method
-
-
-def file_modifying_commits(relative_path, name):
-    repo = pydriller.RepositoryMining(f"./projects/{name}", filepath=relative_path)
-
-    def convert(commit):
-        from commit import CustomCommit
-        commit.__class__ = CustomCommit
-        return commit
-
-    return list(map(convert, repo.traverse_commits()))
+    ctrl = PyDrillingController()
+    abort = False
+    while not abort:
+        answer = input('What do you want to do? (load,abort,process,visualize)')
+        if answer == 'abort':
+            abort = True
+        elif answer == 'load':
+            ctrl.load()
+        elif answer == 'process':
+            ctrl.process()
+        elif answer == 'visualize':
+            ctrl.visualize()
+        else:
+            print("Please, provide a valid answer (load,abort,process,visualize)")
 
 
 if __name__ == '__main__':

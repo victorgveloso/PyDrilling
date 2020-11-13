@@ -13,7 +13,6 @@ class TestIndex:
             yield ''.join(line.split(',')[1:-1])
 
     @staticmethod
-    def cache_test_files(projects):
-        for name, project in projects.items():
-            with open(TestIndex.generate_cache_filename(name), 'w') as f:
-                f.write('\n'.join({f"{name}," + file + "," for file in project.list_files_containing('@Test')}))
+    def cache_test_files(name, project):
+        with open(TestIndex.generate_cache_filename(name), 'w') as f:
+            f.write('\n'.join({f"{name}," + file + "," for file in project.list_files_containing('@Test')}))
