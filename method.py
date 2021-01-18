@@ -1,10 +1,13 @@
-from typing import Collection
+from __future__ import annotations
+from typing import Collection, TYPE_CHECKING
 
-from pydriller.domain.developer import Developer
 import pydriller.domain.commit
+from pydriller.domain.developer import Developer
 
 from contributor import Contributor
-from project import Project
+
+if TYPE_CHECKING:
+    from project import Project
 
 
 class Method:
@@ -35,7 +38,7 @@ class Method:
         self.nloc = nloc
         self.complexity = complexity
         self.n_commits = n_commits
-        self.contributors = contributors
+        self.contributors: Collection[Contributor] = contributors
 
     def __hash__(self):
         return hash(self.package + self.name)

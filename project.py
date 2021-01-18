@@ -1,4 +1,9 @@
+from __future__ import annotations
+from typing import List, TYPE_CHECKING
+
 import pydriller
+if TYPE_CHECKING:
+    from method import Method
 
 
 class Project:
@@ -17,7 +22,7 @@ class Project:
         self.name = name
         self.module_path = path
         self.module_name = path.rsplit('/', maxsplit=2)[-1]
-        self.methods = methods
+        self.methods : List[Method] = methods
 
     def __eq__(self, other):
         return self.name == other.name and self.module_path == other.module_path
@@ -30,10 +35,15 @@ class Project:
         with open(file) as f:
             return pattern in f.read()
 
+    def generate_glob_to(self, folder, extension):
+        return f'{self.module_path}/**/{folder}/**/*.{extension}'
+
     def list_files_containing(self, pattern):
         from glob import iglob
         import itertools
-        path = self.module_path + '/**/test/**/*.'
-        for file in itertools.chain(iglob(path + 'java', recursive=True), iglob(path + 'kt', recursive=True)):
+        for file in itertools.chain(itertools.chain(iglob(self.generate_glob_to('test', 'java'), recursive=True),
+                                                    iglob(self.generate_glob_to('test', 'kt'), recursive=True)),
+                                    itertools.chain(iglob(self.generate_glob_to('tests', 'java'), recursive=True),
+                                                    iglob(self.generate_glob_to('tests', 'kt'), recursive=True))):
             if self._file_contains(file, pattern):
                 yield file[len(self.module_path):]

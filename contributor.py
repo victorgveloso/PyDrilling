@@ -1,6 +1,9 @@
+from __future__ import annotations
 from pydriller.domain.developer import Developer
 
-from project import Project
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from project import Project
 import pydriller
 
 
