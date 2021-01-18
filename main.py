@@ -44,7 +44,7 @@ def main():
                                 method_modifying_commits.add(CustomCommit(c))
                 contributors = [c.author for c in method_modifying_commits]
                 Method.from_pydriller_method(test_file, method, len(method_modifying_commits), contributors, project)
-    with open('projects.json', 'w') as f:
+    with open('resources/projects.json', 'w') as f:
         f.write(jsonpickle.encode(projects))
 
 
